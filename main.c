@@ -5,8 +5,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-//#define DATA_FILE "data.dat"
-#define DATA_FILE "/dev/ttyACM3"
+#define DATA_FILE "data.dat"
+//#define DATA_FILE "/dev/ttyACM2"
+
+#define BUF_SIZE 2048
 
 const int SCREEN_WIDTH = 3100;
 const int SCREEN_HEIGHT = 2000;
@@ -29,11 +31,14 @@ int main(int argc, char* argv[]) {
     int should_quit = 0;
     int x = 0;
     int y = 0;
-    uint16_t data = 0;
+    uint16_t* dataBuffer;
     double syncDuration = 0;
+    double frameDuration = 0;
     double pixelIntensity = 0;
     uint8_t scanMode = 0;
     int status = 0;
+    uint16_t min = 65535;
+    uint16_t max = 0;
     SDL_Event e;
     SDL_Rect stretchRect;
 
@@ -41,6 +46,11 @@ int main(int argc, char* argv[]) {
         printf("Init failure!");
         quit();
         return 0;
+    }
+
+    dataBuffer = malloc((sizeof(uint16_t) * BUF_SIZE));
+    for (uint16_t i=0; i<BUF_SIZE; ++i) {
+        dataBuffer[i] = 0x00;
     }
 
 
@@ -57,53 +67,65 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        status = read(gDataFile, &data, 2);
+        status = read(gDataFile, dataBuffer, BUF_SIZE*sizeof(uint16_t));
         if (status <= 0) {
-            printf("Fatal error when trying to read data! Status: %d. Errno: %d\n", status, errno);
-            continue;
+//            printf("End of data or fatal error when trying to read dataBuffer! Status: %d. Errno: %d\n", status, errno);
         }
-        while (data == 0xFEFE) {
-            read(gDataFile, &data, 2);
-            syncDuration = data/16;
-            read(gDataFile, &data, 2);
-            syncDuration += ((double)data) / 1000000;
-            read(gDataFile, &data, 2);
-            scanMode = data;
-            if (syncDuration >= 0.5) {
-                x = 0;
-                y = 0;
-            } else {
-                if (!(y%4)) {
+
+        for (uint16_t i=0; i<status; i++) {
+            while (dataBuffer[i] == 0xFEFE) {
+                syncDuration = dataBuffer[++i] / 16;
+                syncDuration += ((double)dataBuffer[++i]) / 1000000;
+                scanMode = dataBuffer[++i];
+                frameDuration = dataBuffer[++i] / 16;
+                frameDuration += ((double)dataBuffer[++i]) / 1000000;
+
+                if (syncDuration >= 0.001) {
+                    printf("new frame\n\tx = %d\n\tpulse duration: %f\n\tframe duration %g\n\tscanmode: %d\n", x, syncDuration, frameDuration, scanMode);
+                    x = 0;
+                    y = 0;
                     SDL_RenderPresent(gRenderer);
-                    printf("scanMode: %d", scanMode);
+                } else {
+                    if (!(y%4)) {
+//                        printf("scanMode: %d\n\tpulse duration: %f\n\tframe duration: %f\n", scanMode, syncDuration, frameDuration);
+                        SDL_RenderPresent(gRenderer);
+                    }
+                    printf("x pulse at x = %d\n\tpulse duration: %f\n\tframe duration %g\n\tscanmode: %d\n", x, syncDuration, frameDuration, scanMode);
+                    x = 0;
+                    y += 5;
                 }
-                x = 0;
-                y += 5;
+
+                i++;
             }
 
-            read(gDataFile, &data, 2);
+            if (dataBuffer[i] > max) {
+                max = dataBuffer[i];
+                printf("min/max: %d/%d\n", min, max);
+            }
+            if (dataBuffer[i] < min) {
+                min = dataBuffer[i];
+                printf("min/max: %d/%d\n", min, max);
+            }
+            pixelIntensity = floor((double)dataBuffer[i]) / 1024 * 255;
+            if (pixelIntensity > 255) {
+                pixelIntensity = 255;
+            }
+
+            if (x < SCREEN_WIDTH) {
+                SDL_SetRenderDrawColor(gRenderer, pixelIntensity, pixelIntensity, pixelIntensity, 255);
+                SDL_RenderDrawPoint(gRenderer, x, y);
+                SDL_RenderDrawPoint(gRenderer, x, y+1);
+                SDL_RenderDrawPoint(gRenderer, x, y+2);
+                SDL_RenderDrawPoint(gRenderer, x, y+3);
+                SDL_RenderDrawPoint(gRenderer, x, y+4);
+            }
+            x += 1;
+            if (y >= SCREEN_HEIGHT) {
+                y = 0;
+                printf("frame overflow");
+            }
         }
 
-        pixelIntensity = floor( ((double)data) /1024*255);
-        if (pixelIntensity > 255) {
-            pixelIntensity = 255;
-        }
-
-        SDL_SetRenderDrawColor(gRenderer, pixelIntensity, pixelIntensity, pixelIntensity, 255);
-        SDL_RenderDrawPoint(gRenderer, x, y);
-        SDL_RenderDrawPoint(gRenderer, x, y+1);
-        SDL_RenderDrawPoint(gRenderer, x, y+2);
-        SDL_RenderDrawPoint(gRenderer, x, y+3);
-        SDL_RenderDrawPoint(gRenderer, x, y+4);
-        x += 1;
-        if (x >= SCREEN_WIDTH) {
-            x = 0;
-            y += 1;
-//            SDL_RenderPresent(gRenderer);
-        }
-        if (y >= SCREEN_HEIGHT) {
-            y = 0;
-        }
 
 //            SDL_BlitSurface(gHelloWorld, NULL, gScreenSurface, NULL);
 //        SDL_BlitScaled(gStretchedSurface, NULL, gScreenSurface, &stretchRect);
@@ -175,6 +197,8 @@ void quit() {
 
     SDL_DestroyWindow(gWindow);
     gWindow = NULL;
+
+    close(gDataFile);
 
     SDL_Quit();
 }
