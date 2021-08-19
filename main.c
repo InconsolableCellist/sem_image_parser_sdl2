@@ -49,6 +49,8 @@ int main(int argc, char* argv[]) {
     SDL_Event e;
     SDL_Rect stretchRect;
     uint32_t bytesRead = 0;
+    uint8_t newFrame = 0;
+    uint32_t val;
 
     if (!init()) {
         printf("Init failure!");
@@ -88,7 +90,10 @@ int main(int argc, char* argv[]) {
 
         SDL_UpdateTexture(gTexture, NULL, gPixels, SOURCE_WIDTH * sizeof(uint32_t));
         for (uint16_t i=0; i<(status/sizeof(uint16_t)); i++) {
-            while (dataBuffer[i] == 0xFEFA) {
+            while (dataBuffer[i] == 0xFEFA || dataBuffer[i] == 0xFEFB) {
+                if (dataBuffer[i] == 0xFEFB) {
+                    newFrame = 1;
+                }
                 syncDuration = dataBuffer[++i] / 16;
                 syncDuration += ((double)dataBuffer[++i]) / 1000000;
                 scanMode = dataBuffer[++i];
@@ -103,7 +108,8 @@ int main(int argc, char* argv[]) {
                     printf("minSync/maxSync: %f/%f\n", minSync, maxSync);
                     minSync = syncDuration;
                 }
-                if (syncDuration >= 0.04) {
+                if (newFrame) {
+                    newFrame = 0;
                     printf("new frame\n\tx = %d\n\tpulse duration: %f\n\tframe duration %g\n\tscanmode: %d\n", x, syncDuration, frameDuration, scanMode);
                     x = 0;
                     y = 0;
@@ -149,18 +155,18 @@ int main(int argc, char* argv[]) {
 //                pixelIntensity = 100;
 //            }
 
+            if (y >= SOURCE_HEIGHT) {
+                y = 0;
+                printf("frame overflow\n");
+            }
             if (x < SOURCE_WIDTH) {
-                uint32_t val = ((uint8_t)pixelIntensity) << 24;
+                val = ((uint8_t)pixelIntensity) << 24;
                 val |= ((uint8_t)pixelIntensity) << 16;
                 val |= ((uint8_t)pixelIntensity) << 8;
                 val |= ((uint8_t)pixelIntensity);
                 gPixels[y * SOURCE_WIDTH + x] = val;
             }
             x += 1;
-            if (y >= SOURCE_HEIGHT) {
-                y = 0;
-                printf("frame overflow\n");
-            }
         }
     }
 
