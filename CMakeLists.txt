@@ -3,6 +3,7 @@ project(sem_image_parser_sdl2 C)
 
 set(CMAKE_C_STANDARD 99)
 
+add_compile_options(-Ofast)
 find_package(SDL2 REQUIRED)
 find_file(SDL2_INCLUDE_DIR NAME SDL.h HINTS SDL2)
 include_directories(${SDL2_INCLUDE_DIRS})
