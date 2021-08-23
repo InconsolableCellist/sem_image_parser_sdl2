@@ -12,8 +12,8 @@
 
 const int SCREEN_WIDTH = 768;
 const int SCREEN_HEIGHT = 1024;
-const int SOURCE_WIDTH = 768;
-const int SOURCE_HEIGHT = 1024;
+const int SOURCE_WIDTH = 567;
+const int SOURCE_HEIGHT = 1134;
 
 SDL_Window* gWindow = NULL;
 SDL_Renderer* gRenderer = NULL;
@@ -118,8 +118,8 @@ int main(int argc, char* argv[]) {
                     SDL_RenderPresent(gRenderer);
                 } else {
                     if (!(y%1)) {
-                        printf("scanMode: %d\n\tpulse duration: %f\n\tframe duration: %f\n", scanMode, syncDuration, frameDuration);
-                        printf("\tsyncAverage: %f\n\tmaxSync: %f\n\tminSync: %f\n", syncAverage, maxSync, minSync);
+                        printf("x pulse\n\tx: %d\n\tscanMode: %d\n\tpulse duration: %f\n\tframe duration: %f\n", x, scanMode, syncDuration, frameDuration);
+                        printf("\tsyncAverage: %f\n\tmaxSync: %f\n\tminSync: %f\n", syncAverage/syncNum, maxSync, minSync);
                         SDL_RenderClear(gRenderer);
                         SDL_RenderCopy(gRenderer, gTexture, NULL, &stretchRect);
                         SDL_RenderPresent(gRenderer);
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
                     y += 1;
                 }
                 syncNum += 1;
-                syncAverage += syncDuration/syncNum;
+                syncAverage += syncDuration;
 
                 i++;
             }
@@ -155,6 +155,9 @@ int main(int argc, char* argv[]) {
 //                pixelIntensity = 100;
 //            }
 
+//            SDL_RenderClear(gRenderer);
+//            SDL_RenderCopy(gRenderer, gTexture, NULL, &stretchRect);
+//            SDL_RenderPresent(gRenderer);
             if (y >= SOURCE_HEIGHT) {
                 y = 0;
                 printf("frame overflow\n");
